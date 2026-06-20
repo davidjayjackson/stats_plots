@@ -254,18 +254,33 @@ End Function
 ' Returns the count of values found.
 Function ReadColumn(oRange As Object, ByRef vOut() As Double) As Long
     Dim vRows As Variant
-    Dim r As Integer, c As Integer
+    Dim r As Long, c As Long                         ' Long: a full column has more than 32767 rows
     Dim vVal As Variant
-    Dim n As Long
+    Dim n As Long, total As Long
 
     vRows = oRange.getDataArray()
-    ReDim vOut(0 To 0)
+
+    ' First pass: count numeric cells so vOut can be sized once.
+    total = 0
+    For r = LBound(vRows) To UBound(vRows)
+        For c = LBound(vRows(r)) To UBound(vRows(r))
+            If VarType(vRows(r)(c)) = 5 Then total = total + 1   ' 5 = Double (numeric cell)
+        Next c
+    Next r
+
+    If total = 0 Then
+        ReDim vOut(0 To 0)
+        ReadColumn = 0
+        Exit Function
+    End If
+
+    ' Second pass: copy the numeric values.
+    ReDim vOut(0 To total - 1)
     n = 0
     For r = LBound(vRows) To UBound(vRows)
         For c = LBound(vRows(r)) To UBound(vRows(r))
             vVal = vRows(r)(c)
-            If VarType(vVal) = 5 Then                ' 5 = Double (numeric cell)
-                ReDim Preserve vOut(0 To n)
+            If VarType(vVal) = 5 Then
                 vOut(n) = CDbl(vVal)
                 n = n + 1
             End If

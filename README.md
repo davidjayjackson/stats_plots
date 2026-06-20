@@ -30,4 +30,16 @@ In LibreOffice: **Tools ▸ Extension Manager… ▸ Add…**, select `stats_plo
 The macro writes the bin/count table to a sheet named `histplot` and embeds the
 histogram (a vertical column chart) on that sheet.
 
-> `boxplot` is not implemented yet.
+## Using boxplot
+
+1. Select a column of numeric values in Calc.
+2. Run the `boxplot` macro (**Tools ▸ Macros ▸ Run Macro…**, library `stats_plots`).
+
+The macro writes the five-number summary (minimum, Q1, median, Q3, maximum) to a
+sheet named `boxplot` and embeds a box-and-whisker chart on that sheet. The box
+spans Q1–Q3 and the whiskers span min–max.
+
+> The box-and-whisker visual is rendered with a candlestick (stock) chart, since
+> the legacy chart engine has no native box-plot type. As a result the **median
+> line is not drawn** on the chart, though it is listed in the summary table.
+> Quartiles use the linear-interpolation method (Calc's `QUARTILE.INC`).

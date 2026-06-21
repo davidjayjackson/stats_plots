@@ -39,7 +39,8 @@ The macro writes the five-number summary (minimum, Q1, median, Q3, maximum) to a
 sheet named `boxplot` and embeds a box-and-whisker chart on that sheet. The box
 spans Q1–Q3 and the whiskers span min–max.
 
-> The box-and-whisker visual is rendered with a candlestick (stock) chart, since
-> the legacy chart engine has no native box-plot type. As a result the **median
-> line is not drawn** on the chart, though it is listed in the summary table.
-> Quartiles use the linear-interpolation method (Calc's `QUARTILE.INC`).
+> Since the chart engine has no native box-plot type, the box is built from a
+> stacked column chart: a transparent base lifts the box to Q1, and two shaded
+> segments (Q1–median and median–Q3) make the median read as a line across the
+> box. The whiskers to Min and Max are drawn as error bars. Quartiles use the
+> linear-interpolation method (Calc's `QUARTILE.INC`).

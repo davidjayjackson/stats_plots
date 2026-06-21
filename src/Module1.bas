@@ -113,8 +113,8 @@ Sub CreateColumnChart(oSheet As Object, numBins As Long)
 
     oChart = oCharts.getByName(HIST_CHART).getEmbeddedObject()
     oDiagram = oChart.createInstance("com.sun.star.chart.BarDiagram")
-    oDiagram.Vertical = True                          ' vertical columns
     oChart.setDiagram(oDiagram)
+    oDiagram.Vertical = False                         ' False = vertical columns
     oChart.HasMainTitle = True
     oChart.Title.String = "Histogram"
 End Sub
@@ -166,22 +166,23 @@ Sub BuildBoxplot(oDoc As Object, vData() As Double, nCount As Long)
     WriteStat(oSheet, 4, "Q3",      q3)
     WriteStat(oSheet, 5, "Maximum", dMax)
 
-    ' --- candlestick source data (columns D:H) ---
-    ' A candlestick (Open-Low-High-Close) draws a box from Open to Close with
-    ' a whisker line from Low to High. Map the box to Q1..Q3 and whiskers to
-    ' Min..Max. (The median line is not rendered by the legacy stock chart.)
-    oSheet.getCellByPosition(3, 0).setString("")     ' category header
-    oSheet.getCellByPosition(4, 0).setString("Open")
-    oSheet.getCellByPosition(5, 0).setString("Low")
-    oSheet.getCellByPosition(6, 0).setString("High")
-    oSheet.getCellByPosition(7, 0).setString("Close")
+    ' --- stacked-column source data (columns D:G) ---
+    ' The box is drawn as a stacked column of three segments:
+    '   Base       = Q1          (transparent -> lifts the box to start at Q1)
+    '   Q1-Median  = Median - Q1 (lower half of the box)
+    '   Median-Q3  = Q3 - Median (upper half of the box)
+    ' The border between the two visible segments is the median line. Whiskers
+    ' to Min and Max are added afterwards as error bars (see CreateBoxChart).
+    oSheet.getCellByPosition(3, 0).setString("")          ' category header
+    oSheet.getCellByPosition(4, 0).setString("Base")
+    oSheet.getCellByPosition(5, 0).setString("Q1-Median")
+    oSheet.getCellByPosition(6, 0).setString("Median-Q3")
     oSheet.getCellByPosition(3, 1).setString("Data")
-    oSheet.getCellByPosition(4, 1).setValue(q1)      ' Open  = Q1
-    oSheet.getCellByPosition(5, 1).setValue(dMin)    ' Low   = minimum
-    oSheet.getCellByPosition(6, 1).setValue(dMax)    ' High  = maximum
-    oSheet.getCellByPosition(7, 1).setValue(q3)      ' Close = Q3
+    oSheet.getCellByPosition(4, 1).setValue(q1)
+    oSheet.getCellByPosition(5, 1).setValue(med - q1)
+    oSheet.getCellByPosition(6, 1).setValue(q3 - med)
 
-    CreateStockChart(oSheet)
+    CreateBoxChart(oSheet, dMin, q1, q3, dMax)
 End Sub
 
 
@@ -191,19 +192,23 @@ Sub WriteStat(oSheet As Object, nRow As Long, sName As String, dVal As Double)
 End Sub
 
 
-Sub CreateStockChart(oSheet As Object)
+Sub CreateBoxChart(oSheet As Object, dMin As Double, q1 As Double, q3 As Double, dMax As Double)
     Dim oCharts As Object
     Dim oRect As New com.sun.star.awt.Rectangle
     Dim oRanges(0) As New com.sun.star.table.CellRangeAddress
     Dim oChart As Object, oDiagram As Object
+    Dim oProp As Object
+    Dim oYAxis As Object, pad As Double
+    Dim oDia2 As Object, oCoo As Variant, oTypes As Variant, oSeries As Variant
+    Dim oErr As Object
 
     oRect.X = 8000 : oRect.Y = 500
-    oRect.Width = 10000 : oRect.Height = 11000
+    oRect.Width = 9000 : oRect.Height = 12000
 
     oRanges(0).Sheet = oSheet.RangeAddress.Sheet
     oRanges(0).StartColumn = 3                        ' D
     oRanges(0).StartRow = 0
-    oRanges(0).EndColumn = 7                          ' H
+    oRanges(0).EndColumn = 6                          ' G
     oRanges(0).EndRow = 1
 
     oCharts = oSheet.Charts
@@ -211,12 +216,70 @@ Sub CreateStockChart(oSheet As Object)
     oCharts.addNewByName(BOX_CHART, oRect, oRanges, True, True)
 
     oChart = oCharts.getByName(BOX_CHART).getEmbeddedObject()
-    oDiagram = oChart.createInstance("com.sun.star.chart.StockDiagram")
-    oDiagram.Volume = False
-    oDiagram.UpDown = True                            ' candlestick (box) rendering
+    oDiagram = oChart.createInstance("com.sun.star.chart.BarDiagram")
     oChart.setDiagram(oDiagram)
+    oDiagram.Vertical = False                         ' False = vertical columns
+    oDiagram.Stacked = True                           ' stack the three segments
     oChart.HasMainTitle = True
     oChart.Title.String = "Boxplot"
+    oChart.HasLegend = False
+
+    ' --- widen the value axis so the whiskers (Min..Max) stay visible ---
+    ' Auto-scaling only considers the stacked column tops (Q1..Q3) and would
+    ' otherwise clip the error-bar whiskers that reach Min and Max.
+    pad = (dMax - dMin) * 0.1
+    If pad <= 0 Then pad = 1
+    oYAxis = oDiagram.getYAxis()
+    oYAxis.AutoMin = False
+    oYAxis.Min = dMin - pad
+    oYAxis.AutoMax = False
+    oYAxis.Max = dMax + pad
+
+    ' --- style the three series (0 = base, 1 = Q1..median, 2 = median..Q3) ---
+    ' The two box halves use slightly different shades so the boundary between
+    ' them - the median - reads as a distinct line across the box.
+    oProp = oDiagram.getDataRowProperties(0)          ' base: invisible
+    oProp.FillStyle = com.sun.star.drawing.FillStyle.NONE
+    oProp.LineStyle = com.sun.star.drawing.LineStyle.NONE
+
+    oProp = oDiagram.getDataRowProperties(1)          ' lower box half (Q1..median)
+    oProp.FillStyle = com.sun.star.drawing.FillStyle.SOLID
+    oProp.FillColor = RGB(120, 160, 210)
+    oProp.LineStyle = com.sun.star.drawing.LineStyle.SOLID
+    oProp.LineColor = RGB(0, 0, 0)
+
+    oProp = oDiagram.getDataRowProperties(2)          ' upper box half (median..Q3)
+    oProp.FillStyle = com.sun.star.drawing.FillStyle.SOLID
+    oProp.FillColor = RGB(185, 210, 235)
+    oProp.LineStyle = com.sun.star.drawing.LineStyle.SOLID
+    oProp.LineColor = RGB(0, 0, 0)
+
+    ' --- whiskers as error bars (via the chart2 model) ---
+    ' The chart2 ErrorBar service must be created from the global service
+    ' manager; the embedded chart's own createInstance only serves the legacy
+    ' com.sun.star.chart factory and returns Null for chart2 services.
+    oDia2 = oChart.getFirstDiagram()
+    oCoo = oDia2.getCoordinateSystems()
+    oTypes = oCoo(0).getChartTypes()
+    oSeries = oTypes(0).getDataSeries()
+
+    ' lower whisker: negative error on the base series (its top sits at Q1)
+    oErr = createUnoService("com.sun.star.chart2.ErrorBar")
+    oErr.ErrorBarStyle = com.sun.star.chart.ErrorBarStyle.ABSOLUTE
+    oErr.ShowPositiveError = False
+    oErr.ShowNegativeError = True
+    oErr.PositiveError = 0
+    oErr.NegativeError = q1 - dMin
+    oSeries(0).ErrorBarY = oErr
+
+    ' upper whisker: positive error on the top series (its top sits at Q3)
+    oErr = createUnoService("com.sun.star.chart2.ErrorBar")
+    oErr.ErrorBarStyle = com.sun.star.chart.ErrorBarStyle.ABSOLUTE
+    oErr.ShowPositiveError = True
+    oErr.ShowNegativeError = False
+    oErr.PositiveError = dMax - q3
+    oErr.NegativeError = 0
+    oSeries(2).ErrorBarY = oErr
 End Sub
 
 

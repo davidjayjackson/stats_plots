@@ -21,19 +21,41 @@ This produces `stats_plots.oxt` in the project root.
 
 In LibreOffice: **Tools ▸ Extension Manager… ▸ Add…**, select `stats_plots.oxt`, then restart LibreOffice.
 
-## Using histplot
+The extension provides two ways to use the tools: **chart macros** that draw a
+chart, and **cell functions** that return the numbers.
+
+## Cell functions: =histplot() and =boxplot()
+
+A Calc cell function cannot draw a chart, and — importantly — LibreOffice will
+not run Basic cell functions that live in an extension. So the extension ships
+an installer that copies the functions into **My Macros**, where cell functions
+are supported.
+
+1. Run **Tools ▸ Macros ▸ Run Macro… ▸ stats_plots ▸ Module1 ▸ `InstallCellFunctions`** once.
+2. In any spreadsheet, select the output range, type the formula, and press
+   **Ctrl+Shift+Enter** (array formula):
+   - `=histplot(A1:A50; 2)` → a two-column array of bin labels and counts.
+   - `=boxplot(A1:A50)` → a two-column array: the five-number summary, IQR, both
+     fences, the outlier count, then one row per outlier value.
+
+The installer writes a `statsplots` module into *My Macros ▸ Standard*; rerun it
+after updating the extension to refresh the functions.
+
+## Chart macros: histplotChart and boxplotChart
+
+### histplotChart
 
 1. Select a column of numeric values in Calc.
-2. Run the `histplot` macro (**Tools ▸ Macros ▸ Run Macro…**, library `stats_plots`).
+2. Run `histplotChart` (**Tools ▸ Macros ▸ Run Macro…**, library `stats_plots`).
 3. Enter the bin width when prompted.
 
 The macro writes the bin/count table to a sheet named `histplot` and embeds the
 histogram (a vertical column chart) on that sheet.
 
-## Using boxplot
+### boxplotChart
 
 1. Select a column of numeric values in Calc.
-2. Run the `boxplot` macro (**Tools ▸ Macros ▸ Run Macro…**, library `stats_plots`).
+2. Run `boxplotChart` (**Tools ▸ Macros ▸ Run Macro…**, library `stats_plots`).
 
 The macro writes a summary table to a sheet named `boxplot` and embeds a
 box-and-whisker chart on that sheet. The box spans Q1–Q3 with a median line; the

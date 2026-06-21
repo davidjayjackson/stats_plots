@@ -3,11 +3,17 @@ Option Explicit
 '***************************************************************************
 ' stats_plots
 '
-'   histplot  - histogram (vertical column chart) from a column of numbers.
-'   boxplot   - box-and-whisker plot from a column of numbers.
+' Chart macros (draw the actual chart on a new sheet; run from Tools > Macros):
+'   histplotChart - histogram (vertical column chart) from the selection.
+'   boxplotChart  - box-and-whisker plot from the selection.
 '
-' Both macros operate on the current Calc selection. Select a column of
-' numbers, then run the macro (Tools > Macros, or a toolbar button).
+' Cell functions (return values that spill into cells):
+'   InstallCellFunctions - run once; deploys =histplot()/=boxplot() into
+'                          "My Macros" (extension libraries cannot host Calc
+'                          cell functions). Afterwards:
+'     =histplot(range, binWidth) - bin labels and counts for a histogram.
+'     =boxplot(range)            - five-number summary, fences and outliers.
+'   Array-enter the output range with Ctrl+Shift+Enter.
 '***************************************************************************
 
 Const HIST_SHEET As String = "histplot"
@@ -17,9 +23,185 @@ Const BOX_CHART  As String = "boxplot_chart"
 
 
 '==========================================================================
-' histplot
+' Cell-function installer
+'
+' LibreOffice will not run Basic cell functions from an extension library, so
+' this macro deploys =histplot()/=boxplot() into "My Macros" (the application
+' Basic container), where cell functions are supported. Run it once.
 '==========================================================================
-Sub histplot()
+Sub InstallCellFunctions()
+    Dim oLibs As Object, oStd As Object
+    Const MODNAME As String = "statsplots"
+
+    ' Cell functions must live in the Standard library of My Macros; a custom
+    ' library (or an extension library) is found but refuses to run as a UDF.
+    oLibs = GlobalScope.BasicLibraries
+    oLibs.loadLibrary("Standard")
+    oStd = oLibs.getByName("Standard")
+
+    If oStd.hasByName(MODNAME) Then
+        oStd.replaceByName(MODNAME, FunctionsSource())
+    Else
+        oStd.insertByName(MODNAME, FunctionsSource())
+    End If
+    If oLibs.isModified() Then oLibs.storeLibraries()
+
+    MsgBox "Installed into My Macros > Standard > " & MODNAME & "." & Chr(10) & _
+           "You can now use these as cell functions:" & Chr(10) & _
+           "    =histplot(range; binWidth)" & Chr(10) & _
+           "    =boxplot(range)" & Chr(10) & _
+           "Select the output range and press Ctrl+Shift+Enter.", 64, "stats_plots"
+End Sub
+
+
+' Source of the My Macros "Functions" module, assembled as text. Built with
+' Chr(34) for the quotes the deployed code needs, so no quote-escaping here.
+Function FunctionsSource() As String
+    Dim s As String, LF As String, Q As String
+    LF = Chr(10) : Q = Chr(34)
+
+    s = "Option Explicit" & LF & LF
+
+    ' --- histplot ---
+    s = s & "Function histplot(vData As Variant, binWidth As Double) As Variant" & LF
+    s = s & "    Dim vals() As Double, n As Long" & LF
+    s = s & "    Dim dMin As Double, dMax As Double, lo As Double" & LF
+    s = s & "    Dim numBins As Long, i As Long, idx As Long" & LF
+    s = s & "    Dim counts() As Long, r() As Variant" & LF
+    s = s & "    On Error GoTo EH" & LF
+    s = s & "    n = spReadArray(vData, vals)" & LF
+    s = s & "    If n = 0 Or binWidth <= 0 Then histplot = " & Q & "need numeric data and binWidth > 0" & Q & " : Exit Function" & LF
+    s = s & "    dMin = vals(0) : dMax = vals(0)" & LF
+    s = s & "    For i = 1 To n - 1" & LF
+    s = s & "        If vals(i) < dMin Then dMin = vals(i)" & LF
+    s = s & "        If vals(i) > dMax Then dMax = vals(i)" & LF
+    s = s & "    Next i" & LF
+    s = s & "    lo = Int(dMin / binWidth) * binWidth" & LF
+    s = s & "    numBins = Int((dMax - lo) / binWidth) + 1" & LF
+    s = s & "    If numBins < 1 Then numBins = 1" & LF
+    s = s & "    ReDim counts(0 To numBins - 1)" & LF
+    s = s & "    For i = 0 To n - 1" & LF
+    s = s & "        idx = Int((vals(i) - lo) / binWidth)" & LF
+    s = s & "        If idx < 0 Then idx = 0" & LF
+    s = s & "        If idx > numBins - 1 Then idx = numBins - 1" & LF
+    s = s & "        counts(idx) = counts(idx) + 1" & LF
+    s = s & "    Next i" & LF
+    s = s & "    ReDim r(0 To numBins - 1, 0 To 1)" & LF
+    s = s & "    For i = 0 To numBins - 1" & LF
+    s = s & "        r(i, 0) = " & Q & "[" & Q & " & (lo + i * binWidth) & " & Q & ", " & Q & " & (lo + (i + 1) * binWidth) & " & Q & ")" & Q & LF
+    s = s & "        r(i, 1) = counts(i)" & LF
+    s = s & "    Next i" & LF
+    s = s & "    histplot = r : Exit Function" & LF
+    s = s & "EH:" & LF
+    s = s & "    histplot = " & Q & "stats_plots histplot error: " & Q & " & Error$" & LF
+    s = s & "End Function" & LF & LF
+
+    ' --- boxplot ---
+    s = s & "Function boxplot(vData As Variant) As Variant" & LF
+    s = s & "    Dim vals() As Double, n As Long, i As Long" & LF
+    s = s & "    Dim a() As Double" & LF
+    s = s & "    Dim dMin As Double, q1 As Double, med As Double, q3 As Double, dMax As Double" & LF
+    s = s & "    Dim iqr As Double, loF As Double, hiF As Double" & LF
+    s = s & "    Dim outv() As Double, nOut As Long, r() As Variant" & LF
+    s = s & "    On Error GoTo EH" & LF
+    s = s & "    n = spReadArray(vData, vals)" & LF
+    s = s & "    If n = 0 Then boxplot = " & Q & "no numeric data" & Q & " : Exit Function" & LF
+    s = s & "    ReDim a(0 To n - 1)" & LF
+    s = s & "    For i = 0 To n - 1 : a(i) = vals(i) : Next i" & LF
+    s = s & "    spSort(a, 0, n - 1)" & LF
+    s = s & "    dMin = a(0) : dMax = a(n - 1)" & LF
+    s = s & "    q1 = spQuantile(a, n, 0.25)" & LF
+    s = s & "    med = spQuantile(a, n, 0.5)" & LF
+    s = s & "    q3 = spQuantile(a, n, 0.75)" & LF
+    s = s & "    iqr = q3 - q1 : loF = q1 - 1.5 * iqr : hiF = q3 + 1.5 * iqr" & LF
+    s = s & "    nOut = 0 : ReDim outv(0 To n - 1)" & LF
+    s = s & "    For i = 0 To n - 1" & LF
+    s = s & "        If a(i) < loF Or a(i) > hiF Then outv(nOut) = a(i) : nOut = nOut + 1" & LF
+    s = s & "    Next i" & LF
+    s = s & "    ReDim r(0 To 8 + nOut, 0 To 1)" & LF
+    s = s & "    r(0,0) = " & Q & "Minimum" & Q & " : r(0,1) = dMin" & LF
+    s = s & "    r(1,0) = " & Q & "Q1" & Q & " : r(1,1) = q1" & LF
+    s = s & "    r(2,0) = " & Q & "Median" & Q & " : r(2,1) = med" & LF
+    s = s & "    r(3,0) = " & Q & "Q3" & Q & " : r(3,1) = q3" & LF
+    s = s & "    r(4,0) = " & Q & "Maximum" & Q & " : r(4,1) = dMax" & LF
+    s = s & "    r(5,0) = " & Q & "IQR" & Q & " : r(5,1) = iqr" & LF
+    s = s & "    r(6,0) = " & Q & "Lower fence" & Q & " : r(6,1) = loF" & LF
+    s = s & "    r(7,0) = " & Q & "Upper fence" & Q & " : r(7,1) = hiF" & LF
+    s = s & "    r(8,0) = " & Q & "Outliers" & Q & " : r(8,1) = nOut" & LF
+    s = s & "    For i = 0 To nOut - 1" & LF
+    s = s & "        r(9 + i, 0) = " & Q & "Outlier" & Q & " : r(9 + i, 1) = outv(i)" & LF
+    s = s & "    Next i" & LF
+    s = s & "    boxplot = r : Exit Function" & LF
+    s = s & "EH:" & LF
+    s = s & "    boxplot = " & Q & "stats_plots boxplot error: " & Q & " & Error$" & LF
+    s = s & "End Function" & LF & LF
+
+    ' --- helpers ---
+    s = s & "Function spReadArray(vData As Variant, ByRef vOut() As Double) As Long" & LF
+    s = s & "    Dim r As Long, c As Long, n As Long, total As Long" & LF
+    s = s & "    If Not IsArray(vData) Then" & LF
+    s = s & "        If spIsNum(vData) Then" & LF
+    s = s & "            ReDim vOut(0 To 0) : vOut(0) = CDbl(vData) : spReadArray = 1" & LF
+    s = s & "        Else" & LF
+    s = s & "            ReDim vOut(0 To 0) : spReadArray = 0" & LF
+    s = s & "        End If" & LF
+    s = s & "        Exit Function" & LF
+    s = s & "    End If" & LF
+    s = s & "    total = 0" & LF
+    s = s & "    For r = LBound(vData, 1) To UBound(vData, 1)" & LF
+    s = s & "        For c = LBound(vData, 2) To UBound(vData, 2)" & LF
+    s = s & "            If spIsNum(vData(r, c)) Then total = total + 1" & LF
+    s = s & "        Next c" & LF
+    s = s & "    Next r" & LF
+    s = s & "    If total = 0 Then ReDim vOut(0 To 0) : spReadArray = 0 : Exit Function" & LF
+    s = s & "    ReDim vOut(0 To total - 1) : n = 0" & LF
+    s = s & "    For r = LBound(vData, 1) To UBound(vData, 1)" & LF
+    s = s & "        For c = LBound(vData, 2) To UBound(vData, 2)" & LF
+    s = s & "            If spIsNum(vData(r, c)) Then vOut(n) = CDbl(vData(r, c)) : n = n + 1" & LF
+    s = s & "        Next c" & LF
+    s = s & "    Next r" & LF
+    s = s & "    spReadArray = n" & LF
+    s = s & "End Function" & LF & LF
+
+    s = s & "Function spIsNum(v As Variant) As Boolean" & LF
+    s = s & "    Dim vt As Integer" & LF
+    s = s & "    vt = VarType(v)" & LF
+    s = s & "    spIsNum = (vt >= 2 And vt <= 6)" & LF
+    s = s & "End Function" & LF & LF
+
+    s = s & "Function spQuantile(a() As Double, n As Long, p As Double) As Double" & LF
+    s = s & "    Dim h As Double, k As Long, fr As Double" & LF
+    s = s & "    If n = 1 Then spQuantile = a(0) : Exit Function" & LF
+    s = s & "    h = (n - 1) * p : k = Int(h) : fr = h - k" & LF
+    s = s & "    If k >= n - 1 Then" & LF
+    s = s & "        spQuantile = a(n - 1)" & LF
+    s = s & "    Else" & LF
+    s = s & "        spQuantile = a(k) + fr * (a(k + 1) - a(k))" & LF
+    s = s & "    End If" & LF
+    s = s & "End Function" & LF & LF
+
+    s = s & "Sub spSort(a() As Double, lo As Long, hi As Long)" & LF
+    s = s & "    Dim i As Long, j As Long, pv As Double, tm As Double" & LF
+    s = s & "    i = lo : j = hi : pv = a((lo + hi) \ 2)" & LF
+    s = s & "    Do While i <= j" & LF
+    s = s & "        Do While a(i) < pv : i = i + 1 : Loop" & LF
+    s = s & "        Do While a(j) > pv : j = j - 1 : Loop" & LF
+    s = s & "        If i <= j Then" & LF
+    s = s & "            tm = a(i) : a(i) = a(j) : a(j) = tm : i = i + 1 : j = j - 1" & LF
+    s = s & "        End If" & LF
+    s = s & "    Loop" & LF
+    s = s & "    If lo < j Then spSort(a, lo, j)" & LF
+    s = s & "    If i < hi Then spSort(a, i, hi)" & LF
+    s = s & "End Sub" & LF
+
+    FunctionsSource = s
+End Function
+
+
+'==========================================================================
+' Chart macros
+'==========================================================================
+Sub histplotChart()
     Dim vData() As Double
     Dim nCount As Long
     Dim binWidth As Double
@@ -120,10 +302,7 @@ Sub CreateColumnChart(oSheet As Object, numBins As Long)
 End Sub
 
 
-'==========================================================================
-' boxplot
-'==========================================================================
-Sub boxplot()
+Sub boxplotChart()
     Dim vData() As Double
     Dim nCount As Long
 

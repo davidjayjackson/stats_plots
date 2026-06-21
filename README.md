@@ -35,12 +35,24 @@ histogram (a vertical column chart) on that sheet.
 1. Select a column of numeric values in Calc.
 2. Run the `boxplot` macro (**Tools ▸ Macros ▸ Run Macro…**, library `stats_plots`).
 
-The macro writes the five-number summary (minimum, Q1, median, Q3, maximum) to a
-sheet named `boxplot` and embeds a box-and-whisker chart on that sheet. The box
-spans Q1–Q3 and the whiskers span min–max.
+The macro writes a summary table to a sheet named `boxplot` and embeds a
+box-and-whisker chart on that sheet. The box spans Q1–Q3 with a median line; the
+whiskers extend to the most extreme values within the Tukey fences, and any
+outliers are drawn as separate point markers.
+
+**Outlier detection** uses the 1.5 × IQR rule:
+
+- `IQR = Q3 − Q1`
+- Lower fence = `Q1 − 1.5 × IQR`, upper fence = `Q3 + 1.5 × IQR`
+- Values outside the fences are outliers; the whiskers stop at the most extreme
+  values that are *inside* the fences.
+
+The summary table lists the five-number summary plus IQR, both fences, the
+outlier count, and the outlier values themselves (column `I`).
 
 > Since the chart engine has no native box-plot type, the box is built from a
 > stacked column chart: a transparent base lifts the box to Q1, and two shaded
 > segments (Q1–median and median–Q3) make the median read as a line across the
-> box. The whiskers to Min and Max are drawn as error bars. Quartiles use the
-> linear-interpolation method (Calc's `QUARTILE.INC`).
+> box. Whiskers are drawn as error bars, and each outlier is a single-point
+> symbol series overlaid on the box. Quartiles use the linear-interpolation
+> method (Calc's `QUARTILE.INC`).

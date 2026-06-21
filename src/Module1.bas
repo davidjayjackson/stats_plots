@@ -142,6 +142,9 @@ Sub BuildBoxplot(oDoc As Object, vData() As Double, nCount As Long)
     Dim sorted() As Double
     Dim i As Long
     Dim dMin As Double, q1 As Double, med As Double, q3 As Double, dMax As Double
+    Dim iqr As Double, loFence As Double, hiFence As Double
+    Dim loWhisker As Double, hiWhisker As Double
+    Dim outliers() As Double, nOut As Long
     Dim oSheet As Object
 
     ' --- sort a copy and compute the five-number summary ---
@@ -155,16 +158,51 @@ Sub BuildBoxplot(oDoc As Object, vData() As Double, nCount As Long)
     med = Quantile(sorted, nCount, 0.5)
     q3  = Quantile(sorted, nCount, 0.75)
 
+    ' --- Tukey outlier detection (1.5 * IQR rule) ---
+    iqr = q3 - q1
+    loFence = q1 - 1.5 * iqr
+    hiFence = q3 + 1.5 * iqr
+
+    ' Whiskers reach the most extreme values that lie within the fences.
+    loWhisker = dMin
+    For i = 0 To nCount - 1
+        If sorted(i) >= loFence Then loWhisker = sorted(i) : Exit For
+    Next i
+    hiWhisker = dMax
+    For i = nCount - 1 To 0 Step -1
+        If sorted(i) <= hiFence Then hiWhisker = sorted(i) : Exit For
+    Next i
+
+    ' Values outside the fences are outliers.
+    nOut = 0
+    ReDim outliers(0 To nCount - 1)
+    For i = 0 To nCount - 1
+        If sorted(i) < loFence Or sorted(i) > hiFence Then
+            outliers(nOut) = sorted(i)
+            nOut = nOut + 1
+        End If
+    Next i
+
     oSheet = GetCleanSheet(oDoc, BOX_SHEET)
 
-    ' --- five-number summary table (columns A:B, for reference) ---
+    ' --- summary table (columns A:B, for reference) ---
     oSheet.getCellByPosition(0, 0).setString("Statistic")
     oSheet.getCellByPosition(1, 0).setString("Value")
-    WriteStat(oSheet, 1, "Minimum", dMin)
-    WriteStat(oSheet, 2, "Q1",      q1)
-    WriteStat(oSheet, 3, "Median",  med)
-    WriteStat(oSheet, 4, "Q3",      q3)
-    WriteStat(oSheet, 5, "Maximum", dMax)
+    WriteStat(oSheet, 1, "Minimum",     dMin)
+    WriteStat(oSheet, 2, "Q1",          q1)
+    WriteStat(oSheet, 3, "Median",      med)
+    WriteStat(oSheet, 4, "Q3",          q3)
+    WriteStat(oSheet, 5, "Maximum",     dMax)
+    WriteStat(oSheet, 6, "IQR",         iqr)
+    WriteStat(oSheet, 7, "Lower fence", loFence)
+    WriteStat(oSheet, 8, "Upper fence", hiFence)
+    WriteStat(oSheet, 9, "Outliers",    nOut)
+
+    ' --- outlier values (column I), also used as the chart's point source ---
+    oSheet.getCellByPosition(8, 0).setString("Outliers")
+    For i = 0 To nOut - 1
+        oSheet.getCellByPosition(8, i + 1).setValue(outliers(i))
+    Next i
 
     ' --- stacked-column source data (columns D:G) ---
     ' The box is drawn as a stacked column of three segments:
@@ -172,7 +210,7 @@ Sub BuildBoxplot(oDoc As Object, vData() As Double, nCount As Long)
     '   Q1-Median  = Median - Q1 (lower half of the box)
     '   Median-Q3  = Q3 - Median (upper half of the box)
     ' The border between the two visible segments is the median line. Whiskers
-    ' to Min and Max are added afterwards as error bars (see CreateBoxChart).
+    ' to the fence values are added afterwards as error bars (see CreateBoxChart).
     oSheet.getCellByPosition(3, 0).setString("")          ' category header
     oSheet.getCellByPosition(4, 0).setString("Base")
     oSheet.getCellByPosition(5, 0).setString("Q1-Median")
@@ -182,7 +220,8 @@ Sub BuildBoxplot(oDoc As Object, vData() As Double, nCount As Long)
     oSheet.getCellByPosition(5, 1).setValue(med - q1)
     oSheet.getCellByPosition(6, 1).setValue(q3 - med)
 
-    CreateBoxChart(oSheet, dMin, q1, q3, dMax)
+    ' Axis spans the full data range (Min..Max) so any outliers stay in view.
+    CreateBoxChart(oSheet, q1, q3, loWhisker, hiWhisker, dMin, dMax, nOut)
 End Sub
 
 
@@ -192,7 +231,9 @@ Sub WriteStat(oSheet As Object, nRow As Long, sName As String, dVal As Double)
 End Sub
 
 
-Sub CreateBoxChart(oSheet As Object, dMin As Double, q1 As Double, q3 As Double, dMax As Double)
+Sub CreateBoxChart(oSheet As Object, q1 As Double, q3 As Double, _
+                   loWhisker As Double, hiWhisker As Double, _
+                   axisMin As Double, axisMax As Double, nOut As Long)
     Dim oCharts As Object
     Dim oRect As New com.sun.star.awt.Rectangle
     Dim oRanges(0) As New com.sun.star.table.CellRangeAddress
@@ -201,6 +242,10 @@ Sub CreateBoxChart(oSheet As Object, dMin As Double, q1 As Double, q3 As Double,
     Dim oYAxis As Object, pad As Double
     Dim oDia2 As Object, oCoo As Variant, oTypes As Variant, oSeries As Variant
     Dim oErr As Object
+    Dim oCooSys As Object, oProvider As Object, oLineType As Object
+    Dim oVals As Object, oLab As Object, oDS As Object
+    Dim seqArr(0) As Object
+    Dim k As Long
 
     oRect.X = 8000 : oRect.Y = 500
     oRect.Width = 9000 : oRect.Height = 12000
@@ -224,16 +269,16 @@ Sub CreateBoxChart(oSheet As Object, dMin As Double, q1 As Double, q3 As Double,
     oChart.Title.String = "Boxplot"
     oChart.HasLegend = False
 
-    ' --- widen the value axis so the whiskers (Min..Max) stay visible ---
+    ' --- widen the value axis so whiskers and outliers stay visible ---
     ' Auto-scaling only considers the stacked column tops (Q1..Q3) and would
-    ' otherwise clip the error-bar whiskers that reach Min and Max.
-    pad = (dMax - dMin) * 0.1
+    ' otherwise clip the whiskers and any outlier points.
+    pad = (axisMax - axisMin) * 0.1
     If pad <= 0 Then pad = 1
     oYAxis = oDiagram.getYAxis()
     oYAxis.AutoMin = False
-    oYAxis.Min = dMin - pad
+    oYAxis.Min = axisMin - pad
     oYAxis.AutoMax = False
-    oYAxis.Max = dMax + pad
+    oYAxis.Max = axisMax + pad
 
     ' --- style the three series (0 = base, 1 = Q1..median, 2 = median..Q3) ---
     ' The two box halves use slightly different shades so the boundary between
@@ -269,7 +314,7 @@ Sub CreateBoxChart(oSheet As Object, dMin As Double, q1 As Double, q3 As Double,
     oErr.ShowPositiveError = False
     oErr.ShowNegativeError = True
     oErr.PositiveError = 0
-    oErr.NegativeError = q1 - dMin
+    oErr.NegativeError = q1 - loWhisker
     oSeries(0).ErrorBarY = oErr
 
     ' upper whisker: positive error on the top series (its top sits at Q3)
@@ -277,9 +322,43 @@ Sub CreateBoxChart(oSheet As Object, dMin As Double, q1 As Double, q3 As Double,
     oErr.ErrorBarStyle = com.sun.star.chart.ErrorBarStyle.ABSOLUTE
     oErr.ShowPositiveError = True
     oErr.ShowNegativeError = False
-    oErr.PositiveError = dMax - q3
+    oErr.PositiveError = hiWhisker - q3
     oErr.NegativeError = 0
     oSeries(2).ErrorBarY = oErr
+
+    ' --- outliers as individual point markers (chart2 combination) ---
+    ' Each outlier (column I of the sheet) becomes its own single-point symbol
+    ' series. They all share the one category, so they stack vertically above or
+    ' below the box at the same horizontal position.
+    If nOut > 0 Then
+        Dim oSymbol As New com.sun.star.chart2.Symbol
+        Dim oSz As New com.sun.star.awt.Size
+
+        oCooSys = oCoo(0)
+        oProvider = oChart.getDataProvider()
+        oLineType = createUnoService("com.sun.star.chart2.LineChartType")
+        oCooSys.addChartType(oLineType)
+
+        oSymbol.Style = com.sun.star.chart2.SymbolStyle.STANDARD
+        oSymbol.StandardSymbol = 0
+        oSz.Width = 300 : oSz.Height = 300
+        oSymbol.Size = oSz
+
+        For k = 0 To nOut - 1
+            oVals = oProvider.createDataSequenceByRangeRepresentation( _
+                "$" & oSheet.Name & ".$I$" & (k + 2))
+            oVals.Role = "values-y"
+            oLab = createUnoService("com.sun.star.chart2.data.LabeledDataSequence")
+            oLab.setValues(oVals)
+            oDS = createUnoService("com.sun.star.chart2.DataSeries")
+            seqArr(0) = oLab
+            oDS.setData(seqArr())
+            oDS.setPropertyValue("LineStyle", com.sun.star.drawing.LineStyle.NONE)
+            oDS.setPropertyValue("Color", RGB(200, 30, 30))
+            oDS.setPropertyValue("Symbol", oSymbol)
+            oLineType.addDataSeries(oDS)
+        Next k
+    End If
 End Sub
 
 

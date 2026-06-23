@@ -1,5 +1,7 @@
 # stats_plots
 
+[![Latest release](https://img.shields.io/github/v/release/davidjayjackson/stats_plots?label=latest%20release)](https://github.com/davidjayjackson/stats_plots/releases/latest)
+
 A LibreOffice Calc extension for quick statistical charts from a column of
 numbers. It adds two macros:
 

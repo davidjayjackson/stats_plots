@@ -1,7 +1,14 @@
 # stats_plots
-LibreOffice Calc extension called stats_plots to create histograms and boxplots
-The extension will contain two functions, one to create a histogram called histplot,
-and the second call boxplot to create boxplot. The histplot function, in addition to the column, takes a second variable to set the bin width.
+
+A LibreOffice Calc extension for quick statistical charts from a column of
+numbers. It adds two macros:
+
+- **histplot** — builds a histogram (vertical column chart); you supply the bin width.
+- **boxplot** — builds a box-and-whisker plot with the five-number summary,
+  median line, whiskers, and Tukey (1.5×IQR) outlier markers.
+
+Select a column of values, then run either macro from the **Data** menu or
+**Tools ▸ Macros**.
 
 See [CHANGELOG.md](CHANGELOG.md) for release history.
 

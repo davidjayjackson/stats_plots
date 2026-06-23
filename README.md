@@ -33,10 +33,17 @@ Run `./build.ps1` (see [Building](#building)) to produce `stats_plots.oxt`, then
 To upgrade, install the new `.oxt` the same way — the Extension Manager replaces the
 previous version. The macros appear under library `stats_plots` in **Tools ▸ Macros**.
 
+## Menu
+
+Once installed, both commands appear under **Data ▸ Statistics** (after the
+built-in statistics tools): **Histogram (histplot)** and **Boxplot**. You can
+also run them from **Tools ▸ Macros ▸ Run Macro…** (library `stats_plots`).
+
 ## Using histplot
 
 1. Select a column of numeric values in Calc.
-2. Run the `histplot` macro (**Tools ▸ Macros ▸ Run Macro…**, library `stats_plots`).
+2. Run **histplot** from **Data ▸ Statistics ▸ Histogram (histplot)** (or via
+   **Tools ▸ Macros ▸ Run Macro…**, library `stats_plots`).
 3. Enter the bin width when prompted.
 
 The macro writes the bin/count table to a sheet named `histplot` and embeds the
@@ -45,7 +52,8 @@ histogram (a vertical column chart) on that sheet.
 ## Using boxplot
 
 1. Select a column of numeric values in Calc.
-2. Run the `boxplot` macro (**Tools ▸ Macros ▸ Run Macro…**, library `stats_plots`).
+2. Run **boxplot** from **Data ▸ Statistics ▸ Boxplot** (or via
+   **Tools ▸ Macros ▸ Run Macro…**, library `stats_plots`).
 
 The macro writes a summary table to a sheet named `boxplot` and embeds a
 box-and-whisker chart on that sheet. The box spans Q1–Q3 with a median line; the

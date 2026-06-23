@@ -2,4 +2,6 @@
 <manifest:manifest xmlns:manifest="http://openoffice.org/2001/manifest">
  <manifest:file-entry manifest:media-type="application/vnd.sun.star.basic-library"
                       manifest:full-path="stats_plots/"/>
+ <manifest:file-entry manifest:media-type="application/vnd.sun.star.configuration-data"
+                      manifest:full-path="Addons.xcu"/>
 </manifest:manifest>

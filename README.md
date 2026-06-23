@@ -19,7 +19,19 @@ This produces `stats_plots.oxt` in the project root.
 
 ## Installing
 
-In LibreOffice: **Tools ▸ Extension Manager… ▸ Add…**, select `stats_plots.oxt`, then restart LibreOffice.
+**From a release (recommended)**
+
+1. Download `stats_plots.oxt` from the [latest release](https://github.com/davidjayjackson/stats_plots/releases/latest).
+2. In LibreOffice: **Tools ▸ Extension Manager… ▸ Add…**, select the downloaded `stats_plots.oxt`.
+3. Restart LibreOffice.
+
+**From source**
+
+Run `./build.ps1` (see [Building](#building)) to produce `stats_plots.oxt`, then add it via
+**Tools ▸ Extension Manager… ▸ Add…** and restart LibreOffice.
+
+To upgrade, install the new `.oxt` the same way — the Extension Manager replaces the
+previous version. The macros appear under library `stats_plots` in **Tools ▸ Macros**.
 
 ## Using histplot
 

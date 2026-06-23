@@ -35,14 +35,14 @@ previous version. The macros appear under library `stats_plots` in **Tools ▸ M
 
 ## Menu
 
-Once installed, both commands appear under **Data ▸ Statistics** (after the
-built-in statistics tools): **Histogram (histplot)** and **Boxplot**. You can
+Once installed, both commands appear at the bottom of the **Data** menu, just
+below the built-in **Statistics** submenu: **histplot** and **boxplot**. You can
 also run them from **Tools ▸ Macros ▸ Run Macro…** (library `stats_plots`).
 
 ## Using histplot
 
 1. Select a column of numeric values in Calc.
-2. Run **histplot** from **Data ▸ Statistics ▸ Histogram (histplot)** (or via
+2. Run **histplot** from the **Data** menu (or via
    **Tools ▸ Macros ▸ Run Macro…**, library `stats_plots`).
 3. Enter the bin width when prompted.
 
@@ -52,7 +52,7 @@ histogram (a vertical column chart) on that sheet.
 ## Using boxplot
 
 1. Select a column of numeric values in Calc.
-2. Run **boxplot** from **Data ▸ Statistics ▸ Boxplot** (or via
+2. Run **boxplot** from the **Data** menu (or via
    **Tools ▸ Macros ▸ Run Macro…**, library `stats_plots`).
 
 The macro writes a summary table to a sheet named `boxplot` and embeds a

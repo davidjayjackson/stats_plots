@@ -6,9 +6,11 @@
     <node oor:name="OfficeMenuBarMerging">
       <node oor:name="com.github.davidjayjackson.stats_plots" oor:op="replace">
         <node oor:name="S1" oor:op="replace">
-          <!-- Add to the end of Data > Statistics, after the last built-in item. -->
+          <!-- Add to the Data menu right after the built-in Statistics submenu.
+               (Merging *inside* .uno:StatisticsMenu does not work because that
+               submenu is populated lazily from a separate popup definition.) -->
           <prop oor:name="MergePoint" oor:type="xs:string">
-            <value>.uno:DataMenu\.uno:StatisticsMenu\.uno:FourierAnalysisDialog</value>
+            <value>.uno:DataMenu\.uno:StatisticsMenu</value>
           </prop>
           <prop oor:name="MergeCommand" oor:type="xs:string">
             <value>AddAfter</value>
@@ -30,7 +32,7 @@
                 <value>vnd.sun.star.script:stats_plots.Module1.histplot?language=Basic&amp;location=application</value>
               </prop>
               <prop oor:name="Title" oor:type="xs:string">
-                <value xml:lang="en-US">Histogram (histplot)</value>
+                <value xml:lang="en-US">histplot</value>
               </prop>
               <prop oor:name="Target" oor:type="xs:string">
                 <value>_self</value>
@@ -44,7 +46,7 @@
                 <value>vnd.sun.star.script:stats_plots.Module1.boxplot?language=Basic&amp;location=application</value>
               </prop>
               <prop oor:name="Title" oor:type="xs:string">
-                <value xml:lang="en-US">Boxplot</value>
+                <value xml:lang="en-US">boxplot</value>
               </prop>
               <prop oor:name="Target" oor:type="xs:string">
                 <value>_self</value>

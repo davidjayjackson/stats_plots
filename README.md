@@ -12,6 +12,18 @@ Select a column of values, then run either macro from the **Data** menu or
 
 See [CHANGELOG.md](CHANGELOG.md) for release history.
 
+## Examples
+
+Output for the values `0`–`19` plus a single outlier of `100`:
+
+| histplot | boxplot |
+| --- | --- |
+| ![Histogram](docs/histogram.png) | ![Boxplot](docs/boxplot.png) |
+
+The boxplot flags `100` as an outlier (a red marker above the upper Tukey fence),
+with the box spanning Q1–Q3, the median line, and whiskers to the extreme
+in-fence values.
+
 ## Project layout
 
 - `src/Module1.bas` — canonical LibreOffice Basic source (the macros).
